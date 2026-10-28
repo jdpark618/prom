@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fooocus 프롬프트 빌더</title>
+<style>
+:root{
+  --bg:#f6f7fb; --panel:#ffffff; --text:#1d2130; --muted:#6b7183; --line:#e2e5ee;
+  --accent:#4f5bd5; --accent-weak:#eceefd; --ok:#1f8a5b; --warn:#c0392b; --warn-weak:#fdecea;
+  --chip:#f0f2f7; --code:#f4f5f9;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14161d; --panel:#1c1f28; --text:#e6e8ef; --muted:#9097a8; --line:#2c303c;
+    --accent:#8b94ff; --accent-weak:#262a45; --ok:#4cc38a; --warn:#ff7b6b; --warn-weak:#3a2222;
+    --chip:#252935; --code:#171a22;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 "Pretendard","Malgun Gothic",system-ui,sans-serif}
+header{padding:18px 24px 6px}
+header h1{margin:0;font-size:20px}
+header p{margin:4px 0 0;color:var(--muted)}
+main{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:16px;padding:12px 24px 32px}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:12px 16px 24px}header{padding:16px 16px 4px}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.panel+.panel{margin-top:16px}
+h2{font-size:15px;margin:0 0 10px}
+label{display:block;font-weight:600;margin:10px 0 4px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>div{flex:1;min-width:160px}
+select,textarea,input[type=text]{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
+textarea{resize:vertical;min-height:90px}
+textarea:focus,select:focus,input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.hint{color:var(--muted);font-size:12.5px;margin-top:4px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.tab{border:1px solid var(--line);background:var(--chip);color:var(--text);border-radius:999px;padding:4px 10px;cursor:pointer;font:inherit;font-size:13px}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;max-height:210px;overflow:auto;padding:2px}
+.chip{border:1px solid var(--line);background:var(--chip);color:var(--text);border-radius:6px;padding:3px 8px;cursor:pointer;font:inherit;font-size:13px}
+.chip:hover{border-color:var(--accent);background:var(--accent-weak)}
+.target{display:flex;gap:8px;align-items:center;margin-bottom:8px;color:var(--muted);font-size:13px}
+.out{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:10px;font:13px/1.55 Consolas,"D2Coding",monospace;white-space:pre-wrap;word-break:break-word;min-height:60px}
+.outhead{display:flex;justify-content:space-between;align-items:center;margin:12px 0 4px}
+.outhead b{font-size:13.5px}
+button.btn{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:5px 12px;cursor:pointer;font:inherit;font-size:13px}
+button.btn.ghost{background:transparent;color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:middle}
+th{color:var(--muted);font-weight:600}
+td.en{font-family:Consolas,"D2Coding",monospace}
+tr.unk td{background:var(--warn-weak)}
+tr.unk td.en{color:var(--warn)}
+.add{display:flex;gap:6px}
+.add input{padding:4px 8px}
+.banner{display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--warn-weak);color:var(--warn);font-weight:600}
+.tips{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:13px}
+.tips li{margin:2px 0}
+.mydict{font-size:12.5px;color:var(--muted);margin-top:8px}
+.mydict span{display:inline-block;background:var(--chip);border-radius:6px;padding:1px 6px;margin:2px 4px 2px 0}
+.mydict button{border:none;background:none;color:var(--warn);cursor:pointer;padding:0 0 0 4px}
+.negs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
+.neg{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--bg);cursor:pointer;margin:0;font-weight:400}
+.neg input{margin-top:3px}
+.neg b{display:block;font-size:13px}
+.neg small{display:block;color:var(--muted);font:11.5px/1.4 Consolas,"D2Coding",monospace}
+.neg.off{opacity:.5}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:6px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>Fooocus 프롬프트 빌더</h1>
+  <p>한글로 쓰면 애니 모델용 영어 태그로 바꿔 줍니다. 인터넷 없이 이 PC에서만 동작해요.</p>
+</header>
+<main>
+<section>
+  <div class="panel">
+    <h2>1. 모델과 등급</h2>
+    <div class="row">
+      <div>
+        <label for="model">체크포인트</label>
+        <select id="model"></select>
+      </div>
+      <div>
+        <label for="rating">등급</label>
+        <select id="rating">
+          <option value="general">일반 (전체연령)</option>
+          <option value="sensitive">약간 선정적</option>
+          <option value="nsfw">성인 (NSFW)</option>
+          <option value="explicit">성인 (노골적)</option>
+        </select>
+      </div>
+    </div>
+    <div class="hint" id="modelHint"></div>
+  </div>
+
+  <div class="panel">
+    <h2>2. 한글로 쓰기</h2>
+    <label for="pos">원하는 것</label>
+    <textarea id="pos" placeholder="예) 여자 1명, 긴 은발, 파란 눈, 미소, 교복, 벚꽃, 학교 옥상, 노을, 역광, 상반신"></textarea>
+    <div class="hint">쉼표로 구분하면 정확해요. 단어 뒤에 <b>!</b>를 붙이면 강조(1.2배), <b>!!</b>는 1.4배. 영어는 그대로 들어가요.</div>
+    <label>빼고 싶은 것 <span class="hint" style="font-weight:400">· 기본값 (체크를 끄면 빠져요)</span></label>
+    <div class="negs" id="negGroups"></div>
+    <label for="neg">+ 내 취향으로 더 뺄 것</label>
+    <textarea id="neg" style="min-height:60px" placeholder="예) 안경, 모자, 남자"></textarea>
+  </div>
+
+  <div class="panel">
+    <h2>3. 단어 고르기</h2>
+    <div class="target">
+      넣을 곳:
+      <label style="display:inline;font-weight:400;margin:0"><input type="radio" name="tgt" value="pos" checked> 원하는 것</label>
+      <label style="display:inline;font-weight:400;margin:0"><input type="radio" name="tgt" value="neg"> 빼고 싶은 것</label>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div class="chips" id="chips"></div>
+  </div>
+</section>
+
+<section>
+  <div class="panel">
+    <h2>결과</h2>
+    <div class="banner" id="banner">미성년자를 뜻하는 단어가 있어서 성인 등급 프롬프트를 만들지 않았어요. 해당 단어를 빼거나 등급을 '일반'으로 바꿔 주세요.</div>
+    <div class="outhead"><b>Positive prompt</b><button class="btn" data-copy="outPos">복사</button></div>
+    <div class="out" id="outPos"></div>
+    <div class="outhead"><b>Negative prompt</b><button class="btn" data-copy="outNeg">복사</button></div>
+    <div class="out" id="outNeg"></div>
+    <ul class="tips">
+      <li>Fooocus <b>Style</b> 탭에서 <b>Fooocus V2 / Enhance / Sharp</b>를 모두 꺼 주세요. V2는 태그 뒤에 실사풍 문장을 붙이고, <b>Enhance는 네거티브에 anime, manga를 넣어서</b> 애니 그림체를 오히려 밀어내요.</li>
+      <li>네거티브는 짧을수록 좋아요. 결과에서 실제로 문제가 보일 때만 하나씩 추가하세요.</li>
+      <li id="tipModel"></li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h2>번역 확인</h2>
+    <div class="hint" style="margin:-4px 0 8px">빨간 줄은 사전에 없는 단어예요. 영어 태그를 적고 <b>추가</b>를 누르면 다음부터 자동으로 바꿔요.</div>
+    <table>
+      <thead><tr><th style="width:38%">한글</th><th>영어 태그</th></tr></thead>
+      <tbody id="trans"></tbody>
+    </table>
+    <div class="mydict" id="mydict"></div>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast">복사했어요</div>
+
+<script>
+// ---------- models ----------
+const MODELS = {
+  animagine: {
+    name: "Animagine XL 4.0 (animagineXL40_v4Opt)",
+    pre: [], post: ["masterpiece", "high score", "great score", "absurdres"],
+    rating: {general: "general", sensitive: "sensitive", nsfw: "nsfw", explicit: "explicit"},
+    neg: "worst quality, low quality, low score, bad score, average score",
+    tip: "권장: CFG 5, Sampler euler_ancestral, 25~30 steps. 캐릭터 이름과 작품명은 영어로 그대로 적으면 잘 알아들어요."
+  },
+  pony: {
+    name: "Pony 계열 (autismmixSDXL_autismmixPony)",
+    pre: ["score_9", "score_8_up", "score_7_up", "source_anime"], post: [],
+    rating: {general: "rating_safe", sensitive: "rating_questionable", nsfw: "rating_questionable", explicit: "rating_explicit"},
+    neg: "score_4, score_5, score_6, source_pony, source_furry",
+    tip: "권장: CFG 6~7, Sampler euler_ancestral / dpmpp_2m_sde_gpu, 25 steps. Fooocus 'pony_v6' 프리셋을 쓰면 편해요."
+  },
+  noobai: {
+    name: "NoobAI XL v-pred (noobaiXLNAIXL_vPred10Version)",
+    pre: [], post: ["masterpiece", "best quality", "newest", "absurdres", "highres", "very aesthetic"],
+    rating: {general: "general", sensitive: "sensitive", nsfw: "nsfw", explicit: "explicit"},
+    neg: "worst quality, old, early, low quality",
+    tip: "주의: 이 모델은 v-prediction 방식이라 Fooocus 2.5에서는 회색이나 깨진 이미지가 나올 수 있어요. 안 되면 다른 모델을 쓰세요."
+  },
+  pencil: {
+    name: "Blue Pencil XL / Anima Pencil XL",
+    pre: [], post: ["masterpiece", "best quality", "very aesthetic", "absurdres"],
+    rating: {general: "", sensitive: "", nsfw: "nsfw", explicit: "nsfw, explicit"},
+    neg: "worst quality, low quality",
+    tip: "권장: CFG 5~7, Sampler euler_ancestral, 25~30 steps."
+  },
+  none: {
+    name: "품질 태그 없이 (직접 조합)",
+    pre: [], post: [], rating: {general: "", sensitive: "", nsfw: "nsfw", explicit: "nsfw, explicit"}, neg: "", tip: ""
+  }
+};
+
+// default negatives. SDXL works best with a short, specific list, so each group stays small.
+// "quality" comes from the selected model's card (score tags etc.).
+const NEG_GROUPS = [
+  {id: "quality", name: "화질 (모델 기본)", tags: null},
+  {id: "res", name: "흐림·저해상도", tags: "lowres, blurry, jpeg artifacts"},
+  {id: "hands", name: "손·손가락", tags: "bad hands, extra fingers, missing fingers, fused fingers"},
+  {id: "limbs", name: "팔·다리·발", tags: "extra arms, extra legs, bad feet"},
+  {id: "body", name: "몸 비율·얼굴", tags: "bad anatomy, bad proportions, deformed"},
+  {id: "text", name: "글자·워터마크", tags: "text, signature, watermark, username, logo"},
+  {id: "crop", name: "잘린 구도", tags: "cropped, out of frame"}
+];
+
+// ---------- dictionary ----------
+// "한글|동의어": "english tag"
+const CATS = {
+  "인물": {
+    "여자|여성|소녀|여캐": "1girl", "남자|남성|소년|남캐": "1boy",
+    "여자 2명|여자 둘|두 여자": "2girls", "여자 3명|여자 셋": "3girls", "남자 2명|남자 둘": "2boys",
+    "여자 1명|여자 한명|여자 하나": "1girl", "남자 1명|남자 한명": "1boy",
+    "여러 명|여러명|단체": "multiple girls", "혼자|단독|솔로": "solo", "커플": "couple",
+    "성인|어른": "adult", "성숙한 여성|성숙한|누님": "mature female", "엘프": "elf", "수인|동물귀": "kemonomimi mode",
+    "고양이귀|고양이 귀|캣걸": "cat ears", "여우귀|여우 귀": "fox ears", "토끼귀|토끼 귀|바니": "rabbit ears",
+    "늑대귀|늑대 귀": "wolf ears", "꼬리": "tail", "고양이 꼬리": "cat tail", "여우 꼬리": "fox tail",
+    "뿔": "horns", "악마": "demon girl", "천사": "angel", "날개": "wings", "천사 날개": "angel wings", "악마 날개": "demon wings",
+    "마녀": "witch", "메이드": "maid", "기사": "knight", "공주": "princess", "닌자": "ninja", "무녀": "miko",
+    "수녀": "nun", "간호사": "nurse", "경찰": "police", "아이돌": "idol", "흡혈귀|뱀파이어": "vampire",
+    "로봇|안드로이드": "android", "인어": "mermaid", "용녀|드래곤": "dragon girl"
+  },
+  "머리": {
+    "긴 머리|장발|롱헤어": "long hair", "아주 긴 머리": "very long hair", "중간 머리|중단발": "medium hair",
+    "짧은 머리|단발|숏컷|숏헤어": "short hair", "포니테일|포니|말총머리": "ponytail", "트윈테일|양갈래|양갈래 머리": "twintails",
+    "땋은 머리|땋은머리|브레이드": "braid", "양갈래 땋은 머리": "twin braids", "번|똥머리|올림머리": "hair bun",
+    "사이드테일": "side ponytail", "앞머리|뱅": "bangs", "일자 앞머리": "blunt bangs", "바보털|더듬이": "ahoge",
+    "웨이브|곱슬|웨이브 머리": "wavy hair", "생머리|스트레이트": "straight hair", "헝클어진 머리": "messy hair",
+    "금발": "blonde hair", "은발": "silver hair", "백발": "white hair", "흑발": "black hair", "갈색머리|갈발": "brown hair",
+    "적발": "red hair", "청발": "blue hair", "분홍머리|핑크머리": "pink hair", "그라데이션 머리|투톤": "gradient hair, two-tone hair",
+    "브릿지|메쉬": "streaked hair", "머리 장식|헤어 장식": "hair ornament", "머리핀|헤어핀": "hairclip", "머리띠": "hairband"
+  },
+  "얼굴·표정": {
+    "미소|웃음|웃는": "smile", "활짝 웃음|함박웃음": "grin", "입 벌린 웃음": "open mouth, smile", "수줍음|부끄러움|홍조": "blush",
+    "우는|울음|눈물": "crying, tears", "화난|화남|분노": "angry", "놀란|놀람": "surprised", "무표정": "expressionless",
+    "졸린|졸림": "sleepy", "윙크": "one eye closed", "눈 감음|눈감음": "closed eyes", "삐짐|뾰로통": "pout", "혀 내밈|메롱": "tongue out",
+    "진지한|진지함": "serious", "슬픈|슬픔": "sad", "자신만만|자신감": "smug", "도도한|차가운 표정": "cold expression",
+    "오드아이|오드 아이": "heterochromia", "주근깨": "freckles", "점|눈물점": "mole under eye", "송곳니": "fang",
+    "안경": "glasses", "선글라스": "sunglasses", "안대": "eyepatch", "마스크": "mask", "화장|메이크업": "makeup", "립스틱": "lipstick",
+    "속눈썹": "eyelashes", "반짝이는 눈": "sparkling eyes", "하트 눈": "heart-shaped pupils", "가는 눈|실눈": "narrowed eyes"
+  },
+  "체형": {
+    "키 큰|장신": "tall female", "키 작은|단신": "short stature", "날씬한|슬림": "slim", "근육|근육질": "muscular female",
+    "글래머|굴곡진": "curvy", "큰 가슴|거유": "large breasts", "보통 가슴": "medium breasts", "작은 가슴|빈유": "small breasts",
+    "허벅지|두꺼운 허벅지": "thick thighs", "넓은 골반": "wide hips", "복근": "abs", "까무잡잡한|태닝": "dark skin, tan",
+    "하얀 피부|창백한 피부": "pale skin", "문신|타투": "tattoo"
+  },
+  "옷": {
+    "교복|학생복": "school uniform", "세일러복|세라복": "serafuku", "블레이저": "blazer", "체육복": "gym uniform",
+    "메이드복": "maid outfit", "기모노": "kimono", "유카타": "yukata", "한복": "hanbok", "차이나드레스|치파오": "china dress",
+    "드레스": "dress", "웨딩드레스": "wedding dress", "원피스": "dress", "하얀 원피스": "white dress", "이브닝드레스": "evening gown",
+    "셔츠": "shirt", "블라우스": "blouse", "티셔츠": "t-shirt", "후드티|후드": "hoodie", "스웨터|니트": "sweater",
+    "카디건|가디건": "cardigan", "재킷|자켓": "jacket", "코트": "coat", "트렌치코트": "trench coat", "정장|수트": "suit",
+    "와이셔츠": "collared shirt", "넥타이": "necktie", "리본": "ribbon", "나비넥타이": "bowtie", "목도리|머플러": "scarf",
+    "치마|스커트": "skirt", "미니스커트": "miniskirt", "플리츠스커트|주름치마": "pleated skirt", "롱스커트": "long skirt",
+    "바지": "pants", "청바지": "jeans", "반바지|숏팬츠": "shorts", "레깅스": "leggings",
+    "스타킹|팬티스타킹": "pantyhose", "니삭스|사이하이": "thighhighs", "양말": "socks", "가터벨트": "garter belt",
+    "수영복": "swimsuit", "비키니": "bikini", "원피스 수영복": "one-piece swimsuit", "스쿨미즈": "school swimsuit",
+    "잠옷|파자마": "pajamas", "속옷": "underwear", "란제리": "lingerie", "바니걸|바니슈트": "playboy bunny",
+    "갑옷": "armor", "망토": "cape", "로브": "robe", "제복|군복": "military uniform", "간호사복": "nurse uniform",
+    "운동복|트레이닝복": "track suit", "에이프런|앞치마": "apron", "오프숄더|오프 숄더": "off-shoulder", "민소매": "sleeveless",
+    "긴 소매|긴소매": "long sleeves", "짧은 소매|반팔": "short sleeves", "소매가 긴|소매 덮은": "sleeves past wrists",
+    "모자": "hat", "베레모": "beret", "마녀 모자": "witch hat", "캡모자|야구모자": "baseball cap", "왕관|티아라": "tiara",
+    "장갑": "gloves", "긴 장갑": "elbow gloves", "신발": "shoes", "부츠": "boots", "하이힐|힐": "high heels", "운동화": "sneakers",
+    "맨발": "barefoot", "귀걸이": "earrings", "목걸이": "necklace", "초커": "choker", "팔찌": "bracelet",
+    "가방": "bag", "우산": "umbrella", "칼|검": "sword", "총": "gun", "지팡이|스태프": "staff", "책": "book", "꽃다발": "bouquet",
+    "헤드폰": "headphones", "고양이": "cat", "강아지": "dog"
+  },
+  "포즈·구도": {
+    "서있는|서 있는|서기": "standing", "앉은|앉아있는|앉기": "sitting", "누운|누워있는|눕기": "lying", "엎드린": "on stomach",
+    "무릎 꿇은|무릎꿇기": "kneeling", "쪼그려 앉은": "squatting", "걷는|걷기": "walking", "뛰는|달리기": "running",
+    "점프": "jumping", "기대는|기댄": "leaning", "뒤돌아보는|뒤돌아보기": "looking back", "팔짱": "crossed arms",
+    "손 흔드는|손인사": "waving", "브이|브이 포즈|피스": "v", "손하트|하트 손": "heart hands", "손 모은": "own hands together",
+    "팔 올린|기지개": "arms up", "손 뒤로": "arms behind back", "머리 넘기는": "hand in own hair", "턱 괴기|턱괸": "hand on own cheek",
+    "정면|정면 보기|카메라 보는": "looking at viewer", "옆모습|측면": "from side", "뒷모습": "from behind",
+    "위에서|하이앵글": "from above", "아래에서|로우앵글": "from below", "기울어진 앵글|더치앵글": "dutch angle",
+    "전신": "full body", "상반신": "upper body", "얼굴 클로즈업|클로즈업": "close-up, portrait", "카우보이샷|무릎 위": "cowboy shot",
+    "와이드샷|원경": "wide shot", "셀카": "selfie", "다이나믹 포즈|역동적": "dynamic pose"
+  },
+  "배경": {
+    "흰 배경|하얀 배경": "white background, simple background", "단색 배경|심플 배경": "simple background",
+    "실내": "indoors", "운동장": "school, playground", "체육관": "gym", "수영장": "pool", "무대|스테이지": "stage", "편의점": "convenience store",
+    "지하철": "subway", "버스": "bus interior", "식당": "restaurant", "놀이공원": "amusement park", "눈밭|설원": "snow", "야외": "outdoors", "교실": "classroom", "학교": "school", "옥상": "rooftop", "복도": "hallway",
+    "침실|방": "bedroom", "침대": "bed", "카페": "cafe", "도서관": "library", "부엌": "kitchen", "욕실|욕조": "bathroom",
+    "온천": "onsen", "도시": "city", "거리|길거리": "street", "골목": "alley", "번화가|네온 거리": "neon lights, city",
+    "공원": "park", "숲": "forest", "바다": "ocean", "해변|바닷가": "beach", "강": "river", "호수": "lake", "산": "mountain",
+    "들판|초원": "field, grass", "꽃밭": "flower field", "벚꽃": "cherry blossoms", "해바라기": "sunflower", "단풍": "autumn leaves",
+    "신사|일본 신사": "shrine", "성|궁전": "castle", "교회|성당": "church", "폐허": "ruins", "우주": "space", "판타지": "fantasy",
+    "사이버펑크": "cyberpunk", "기차|전철": "train interior", "축제|여름 축제": "summer festival", "불꽃놀이": "fireworks",
+    "창문": "window", "물": "water", "수중|물속": "underwater", "하늘": "sky", "구름": "cloud"
+  },
+  "시간·날씨·빛": {
+    "낮": "day", "밤": "night", "아침": "morning", "노을|석양|해질녘": "sunset", "황혼": "twilight", "밤하늘": "night sky",
+    "별|별하늘": "starry sky", "달|보름달": "full moon", "맑은 하늘|파란 하늘": "blue sky", "비": "rain", "눈 오는|눈송이": "snowing",
+    "안개": "fog", "바람": "wind", "봄": "spring", "여름": "summer", "가을": "autumn", "겨울": "winter",
+    "역광": "backlighting", "햇빛|햇살": "sunlight", "빛줄기|틴들": "light rays", "나뭇잎 그림자|햇살 그림자": "dappled sunlight",
+    "부드러운 조명": "soft lighting", "강한 그림자": "dramatic lighting", "림라이트": "rim lighting", "네온": "neon lights",
+    "보케|배경 흐림": "bokeh, depth of field", "렌즈 플레어": "lens flare", "반짝이": "sparkle", "빛나는": "glowing"
+  },
+  "그림체": {
+    "애니풍|애니메이션": "anime screencap", "셀화|셀 셰이딩": "cel shading", "수채화": "watercolor (medium)", "유화": "oil painting (medium)",
+    "스케치|러프": "sketch", "선화|라인아트": "lineart", "흑백|모노크롬": "monochrome", "파스텔": "pastel colors",
+    "채도 높은|비비드": "vivid colors", "차분한 색감": "muted colors", "레트로|90년대": "retro artstyle, 1990s (style)",
+    "치비|SD 캐릭터": "chibi", "일러스트": "illustration", "포스터": "poster (medium)", "디테일|세밀한": "highly detailed",
+    "몽환적": "dreamlike", "어두운 분위기|다크": "dark", "귀여운": "cute", "멋진|쿨한": "cool", "우아한": "elegant"
+  }
+};
+
+// colours combine with the next noun: "파란 눈" -> "blue eyes"
+const COLORS = {
+  "빨간|빨강|붉은|빨간색|레드": "red", "파란|파랑|푸른|파란색|블루": "blue", "하늘색": "light blue", "남색|네이비": "navy blue",
+  "초록|녹색|초록색|그린": "green", "연두|연두색": "light green", "노란|노랑|노란색|옐로": "yellow", "보라|보라색|퍼플": "purple",
+  "분홍|분홍색|핑크": "pink", "주황|주황색|오렌지": "orange", "검은|검정|까만|검은색|블랙": "black", "흰|하얀|흰색|하얀색|화이트": "white",
+  "은색|실버": "silver", "회색|그레이": "grey", "갈색|브라운": "brown", "금색|골드": "gold", "청록|청록색|민트": "aqua", "베이지": "beige"
+};
+const PARTS = {
+  "머리|머리카락|헤어": "hair", "눈|눈동자": "eyes", "드레스": "dress", "원피스": "dress", "치마|스커트": "skirt", "셔츠": "shirt",
+  "리본": "ribbon", "모자": "hat", "재킷|자켓": "jacket", "코트": "coat", "비키니": "bikini", "수영복": "swimsuit", "기모노": "kimono",
+  "후드티|후드": "hoodie", "스웨터|니트": "sweater", "넥타이": "necktie", "장갑": "gloves", "부츠": "boots", "신발": "shoes",
+  "니삭스|사이하이": "thighhighs", "양말": "socks", "스타킹": "pantyhose", "배경": "background", "꽃": "flower", "날개": "wings",
+  "망토": "cape", "목도리|머플러": "scarf", "머리띠": "hairband", "속옷": "underwear", "란제리": "lingerie", "매니큐어": "nail polish",
+  "피부": "skin", "입술": "lips", "기모노": "kimono", "유카타": "yukata", "한복": "hanbok", "바지": "pants", "반바지": "shorts"
+};
+
+// minor-related terms: never allowed together with a non-general rating
+const MINOR_KO = ["로리", "쇼타", "어린이", "어린아이", "아이", "유아", "아기", "꼬마", "초등학생", "초딩", "중학생", "중딩", "미성년", "어린 소녀", "어린 소년", "꼬맹이"];
+const MINOR_EN = /\b(loli|lolis|shota|child|children|kid|kids|toddler|baby|infant|minor|underage|elementary school|middle school|preteen|young girl|young boy|aged down)\b/i;
+
+// ---------- build lookup ----------
+function expand(obj){ const m = new Map(); for (const [k, v] of Object.entries(obj)) for (const s of k.split("|")) m.set(s.trim(), v); return m; }
+const DICT = new Map();
+for (const cat of Object.values(CATS)) for (const [k, v] of expand(cat)) DICT.set(k, v);
+const COLOR = expand(COLORS), PART = expand(PARTS);
+const HAIRLEN = new Map([["긴", "long hair"], ["아주긴", "very long hair"], ["짧은", "short hair"], ["중간", "medium hair"]]);
+const HOLD = new Set(["들고", "든", "쥔", "쥐고", "안고", "안은"]);
+// words that carry no tag of their own ("교복을 입은 여자")
+const FILLER = new Set(["입은", "입고", "단", "달고", "맨", "메고", "두른", "가진", "가지고", "있고", "하고있는", "착용한", "쓴", "쓰고", "신은", "신고", "낀", "끼고", "있는", "있음", "하는", "하고", "그리고", "및", "또는", "같은", "느낌", "스타일", "모습", "정도", "약간", "조금", "매우", "아주", "엄청", "완전"]);
+
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+let USER = store.get("fpb.userDict", {});
+
+function lookup(s){
+  if (Object.prototype.hasOwnProperty.call(USER, s)) return USER[s];
+  if (DICT.has(s)) return DICT.get(s);
+  const ns = s.replace(/\s+/g, "");
+  if (ns !== s && DICT.has(ns)) return DICT.get(ns);
+  return null;
+}
+// "파란눈" (no space) -> "blue eyes"
+function combo(w){
+  for (const [ck, cv] of COLOR) if (w.startsWith(ck) && PART.has(w.slice(ck.length))) return cv + " " + PART.get(w.slice(ck.length));
+  return null;
+}
+const PARTICLES = ["에서", "으로", "하고", "이랑", "랑", "의", "을", "를", "이", "가", "은", "는", "에", "와", "과", "로", "도", "인", "한"];
+function strip(w){
+  if (lookup(w) || COLOR.has(w) || PART.has(w) || HAIRLEN.has(w)) return w;
+  for (const p of PARTICLES) if (w.length > p.length && w.endsWith(p)) { const b = w.slice(0, -p.length); if (lookup(b) || COLOR.has(b) || PART.has(b) || combo(b)) return b; }
+  return w;
+}
+
+// translate one comma-separated chunk -> [{ko, en|null}]
+function translateChunk(chunk){
+  let weight = 0;
+  const m = chunk.match(/(!+)\s*$/);
+  if (m) { weight = m[1].length; chunk = chunk.slice(0, -m[1].length).trim(); }
+  if (!chunk) return [];
+  if (!/[가-힣]/.test(chunk)) return [{ko: chunk, en: chunk, weight}];
+
+  const whole = lookup(chunk);
+  if (whole) return [{ko: chunk, en: whole, weight}];
+
+  const words = chunk.split(/\s+/).filter(Boolean);
+  const res = [];
+  let i = 0;
+  while (i < words.length) {
+    let hit = null;
+    for (let n = Math.min(4, words.length - i); n >= 1; n--) {
+      const ph = words.slice(i, i + n).join(" ");
+      const en = lookup(ph) || (n === 1 && !COLOR.has(ph) && !HAIRLEN.has(ph) ? lookup(strip(ph)) : null);
+      if (en) { hit = {ko: ph, en, n}; break; }
+    }
+    // colour + noun ("파란 눈", "파란눈")
+    const w = strip(words[i]);
+    if (!hit && COLOR.has(w) && i + 1 < words.length && PART.has(strip(words[i + 1]))) {
+      hit = {ko: words[i] + " " + words[i + 1], en: COLOR.get(w) + " " + PART.get(strip(words[i + 1])), n: 2};
+    }
+    if (!hit && combo(w)) hit = {ko: words[i], en: combo(w), n: 1};
+    // "긴 은발", "긴 검은 머리" -> long hair + ...
+    if (!hit && HAIRLEN.has(w) && i + 1 < words.length) {
+      const nw = strip(words[i + 1]), nx = lookup(nw) || combo(nw);
+      const colorHair = COLOR.has(nw) && i + 2 < words.length && PART.get(strip(words[i + 2])) === "hair";
+      if ((nx && /hair\b/.test(nx)) || colorHair) { res.push({ko: words[i], en: HAIRLEN.get(w), weight: 0}); i++; continue; }
+    }
+    if (hit) { res.push({ko: hit.ko, en: hit.en, weight: 0}); i += hit.n; continue; }
+    // "칼을 들고 있는" -> holding sword
+    if (HOLD.has(words[i]) && res.length && res[res.length - 1].en && !res[res.length - 1].en.startsWith("holding")) {
+      const p = res[res.length - 1]; p.ko += " " + words[i]; p.en = "holding " + p.en; i++; continue;
+    }
+    if (FILLER.has(words[i])) { i++; continue; }
+    if (!/[가-힣]/.test(words[i])) { res.push({ko: words[i], en: words[i], weight: 0}); i++; continue; }
+    res.push({ko: words[i], en: null, weight: 0}); i++;
+  }
+  if (weight && res.length) res.forEach(r => r.weight = weight);
+  return res;
+}
+function translate(text){
+  const out = [];
+  for (const c of text.split(/[,，、\n]+/)) { const t = c.trim(); if (t) out.push(...translateChunk(t)); }
+  return out;
+}
+function fmt(r){
+  const w = r.weight ? (1 + 0.2 * r.weight).toFixed(1) : null;
+  return w ? `(${r.en}:${w})` : r.en;
+}
+function dedupe(list){ const seen = new Set(); return list.filter(t => { const k = t.toLowerCase(); if (!t || seen.has(k)) return false; seen.add(k); return true; }); }
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const modelSel = $("model"), ratingSel = $("rating"), pos = $("pos"), neg = $("neg");
+for (const [k, m] of Object.entries(MODELS)) modelSel.add(new Option(m.name, k));
+modelSel.value = store.get("fpb.model", "animagine");
+ratingSel.value = store.get("fpb.rating", "general");
+pos.value = store.get("fpb.pos", "");
+neg.value = store.get("fpb.neg", "");
+
+function isMinor(rows, raw){
+  if (MINOR_KO.some(w => raw.includes(w))) return true;
+  return rows.some(r => r.en && MINOR_EN.test(r.en));
+}
+const COUNT = /^(\d+|multiple )(girls?|boys?)$|^solo$|^couple$/;
+
+function render(){
+  const M = MODELS[modelSel.value], rating = ratingSel.value;
+  const P = translate(pos.value), N = translate(neg.value);
+  const blocked = rating !== "general" && isMinor(P, pos.value);
+  $("banner").style.display = blocked ? "block" : "none";
+
+  const tags = P.filter(r => r.en).map(fmt);
+  const count = tags.filter(t => COUNT.test(t)), rest = tags.filter(t => !COUNT.test(t));
+  const rt = M.rating[rating] ? [M.rating[rating]] : [];
+  const positive = dedupe([...M.pre, ...count, ...rt, ...rest, ...M.post]);
+  const defaults = [];
+  for (const g of NEG_GROUPS) {
+    const tags = g.tags ?? M.neg;
+    const box = document.querySelector(`.neg[data-id="${g.id}"]`);
+    if (box) { box.querySelector("small").textContent = tags || "(이 모델은 없음)"; box.classList.toggle("off", !NEG_ON[g.id]); }
+    if (NEG_ON[g.id] && tags) defaults.push(...tags.split(/,\s*/));
+  }
+  const negative = dedupe([...defaults, ...N.filter(r => r.en).map(fmt)]);
+
+  $("outPos").textContent = blocked ? "" : positive.join(", ");
+  $("outNeg").textContent = blocked ? "" : negative.join(", ");
+  $("modelHint").textContent = M.tip;
+  $("tipModel").textContent = M.tip;
+  $("tipModel").style.display = M.tip ? "" : "none";
+
+  const tb = $("trans"); tb.innerHTML = "";
+  const rows = [...P.map(r => ({...r, side: "+"})), ...N.map(r => ({...r, side: "−"}))].filter(r => /[가-힣]/.test(r.ko));
+  if (!rows.length) tb.innerHTML = `<tr><td colspan="2" style="color:var(--muted)">한글을 입력하면 여기에 번역이 보여요.</td></tr>`;
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    const ko = document.createElement("td"); ko.textContent = (r.side === "−" ? "(뺄 것) " : "") + r.ko;
+    const en = document.createElement("td"); en.className = "en";
+    if (r.en) en.textContent = r.en;
+    else {
+      tr.className = "unk";
+      const box = document.createElement("div"); box.className = "add";
+      const inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "영어 태그 입력";
+      const b = document.createElement("button"); b.className = "btn"; b.textContent = "추가";
+      const save = () => { const v = inp.value.trim(); if (!v) return; USER[r.ko] = v; store.set("fpb.userDict", USER); render(); };
+      b.onclick = save; inp.onkeydown = e => { if (e.key === "Enter") save(); };
+      box.append(inp, b); en.append(box);
+    }
+    tr.append(ko, en); tb.append(tr);
+  }
+  const md = $("mydict"); md.innerHTML = "";
+  const keys = Object.keys(USER);
+  if (keys.length) {
+    md.append("내가 추가한 단어: ");
+    for (const k of keys) {
+      const s = document.createElement("span"); s.textContent = `${k} → ${USER[k]}`;
+      const x = document.createElement("button"); x.textContent = "×"; x.title = "삭제";
+      x.onclick = () => { delete USER[k]; store.set("fpb.userDict", USER); render(); };
+      s.append(x); md.append(s);
+    }
+  }
+  store.set("fpb.model", modelSel.value); store.set("fpb.rating", rating);
+  store.set("fpb.pos", pos.value); store.set("fpb.neg", neg.value);
+}
+
+// default negative toggles
+const NEG_ON = Object.assign(Object.fromEntries(NEG_GROUPS.map(g => [g.id, true])), store.get("fpb.negOn", {}));
+for (const g of NEG_GROUPS) {
+  const l = document.createElement("label"); l.className = "neg"; l.dataset.id = g.id;
+  const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = NEG_ON[g.id];
+  cb.onchange = () => { NEG_ON[g.id] = cb.checked; store.set("fpb.negOn", NEG_ON); render(); };
+  const t = document.createElement("div"); t.innerHTML = "<b></b><small></small>"; t.querySelector("b").textContent = g.name;
+  l.append(cb, t); $("negGroups").append(l);
+}
+
+// chips
+const tabs = $("tabs"), chips = $("chips");
+const catNames = [...Object.keys(CATS), "색"];
+let curCat = store.get("fpb.cat", catNames[0]);
+function showCat(name){
+  curCat = name; store.set("fpb.cat", name);
+  [...tabs.children].forEach(t => t.classList.toggle("on", t.dataset.cat === name));
+  chips.innerHTML = "";
+  const words = name === "색" ? Object.keys(COLORS).map(k => k.split("|")[0] + " ") : Object.keys(CATS[name]).map(k => k.split("|")[0]);
+  for (const w of words) {
+    const c = document.createElement("button"); c.className = "chip"; c.textContent = w.trim(); c.onclick = () => insert(w);
+    chips.append(c);
+  }
+}
+for (const n of catNames) { const t = document.createElement("button"); t.className = "tab"; t.textContent = n; t.dataset.cat = n; t.onclick = () => showCat(n); tabs.append(t); }
+showCat(catNames.includes(curCat) ? curCat : catNames[0]);
+
+function insert(word){
+  const ta = document.querySelector('input[name="tgt"]:checked').value === "neg" ? neg : pos;
+  const v = ta.value.replace(/\s+$/, "");
+  const colorOnly = word.endsWith(" ");
+  ta.value = v ? (colorOnly || v.endsWith(" ") ? v + (v.endsWith(",") ? " " : ", ") + word : v + ", " + word) : word;
+  if (colorOnly) ta.value = ta.value; // colour waits for its noun
+  ta.focus(); render();
+}
+
+let timer;
+for (const el of [pos, neg]) el.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(render, 120); });
+modelSel.onchange = render; ratingSel.onchange = render;
+
+document.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
+  const text = $(b.dataset.copy).textContent;
+  if (!text) return;
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = document.createElement("textarea"); t.value = text; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
+  const toast = $("toast"); toast.classList.add("on"); setTimeout(() => toast.classList.remove("on"), 1200);
+});
+
+render();
+</script>
+</body>
+</html>
